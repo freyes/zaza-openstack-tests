@@ -28,6 +28,7 @@ import zaza.openstack.utilities.openstack as openstack_utils
 class CephFSTests(test_utils.OpenStackBaseTest):
     """Encapsulate CephFS tests."""
 
+    CEPH_MON = 'ceph-mon'
     RESOURCE_PREFIX = 'zaza-cephfstests'
     INSTANCE_USERDATA = """#cloud-config
 packages:
@@ -59,9 +60,9 @@ write_files:
         5. profit
         """
         keyring = model.run_on_leader(
-            'ceph-mon', 'cat /etc/ceph/ceph.client.admin.keyring')['Stdout']
+            self.CEPH_MON, 'cat /etc/ceph/ceph.client.admin.keyring')['Stdout']
         conf = model.run_on_leader(
-            'ceph-mon', 'cat /etc/ceph/ceph.conf')['Stdout']
+            self.CEPH_MON, 'cat /etc/ceph/ceph.conf')['Stdout']
         # Spawn Servers
         instance_1, instance_2 = self.launch_guests(
             userdata=self.INSTANCE_USERDATA.format(
@@ -102,6 +103,14 @@ write_files:
             'sudo mount -a && '
             'sudo cat /mnt/cephfs/test',
             password=password, privkey=privkey, verify=verify)
+
+
+class CephFSWithCephProxyTests(CephFSTests):
+    """Extend CephFSTests to use ceph-proxy instead of ceph-mon."""
+
+    # when ceph-proxy is being used it will be the one acting as a ceph-mon
+    # for the other charms holding the admin key and ceph.conf
+    CEPH_MON = 'ceph-proxy'
 
 
 def _indent(text, amount, ch=' '):

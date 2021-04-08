@@ -2,6 +2,7 @@
 
 import logging
 import zaza.model as model
+from zaza.utilities import juju
 
 
 def setup_ceph_proxy():
@@ -29,3 +30,13 @@ def setup_ceph_proxy():
     logging.debug('Config: {}'.format(proxy_config))
 
     model.set_application_config("ceph-proxy", proxy_config)
+
+    # When ceph-fs is deployed with a relation to ceph-proxy, but ceph-proxy
+    # hasn't been configured yet it may seat down waiting in
+    # blocked/"'ceph-mds' missing" or waiting/"'ceph-mds' incomplete", which
+    # of the states will take is unpredictable, while if it's not related it
+    # will always get into blocked state, so adding the relation later allows
+    # consistent runs of the functional tests.
+    status = juju.get_full_juju_status()
+    if 'ceph-fs' in status.applications.keys():
+        model.add_relation('ceph-proxy', 'mds', 'ceph-fs:ceph-mds')
