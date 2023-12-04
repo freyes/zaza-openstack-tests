@@ -959,6 +959,46 @@ def get_charm_networking_data(limit_gws=None):
         other_config)
 
 
+def _server_port_attach(server, port_id):
+    """Attach a port to a server.
+
+    The attachment will be retried in case of failure coming from the Nova API.
+
+    :param server: instance to attach the port to
+    :param port_id: ID of the port that needs to be attached to server
+    """
+    assert server
+    assert port_id
+    for attempt in tenacity.Retrying(
+            retry=tenacity.retry_if_exception_type(novaclient_client.exceptions.ClientException),
+            stop=tenacity.stop_after_attempt(10),
+            wait=tenacity.wait_exponential(multiplier=1, min=2, max=10),
+    ):
+        with attempt:
+            server.interface_attach(port_id=port_id,
+                                    net_id=None, fixed_ip=None)
+            return
+
+
+def _port_create(net_id, port_name):
+    body_value = {
+        "port": {
+            "admin_state_up": True,
+            "name": port_name,
+            "network_id": net_id,
+            "port_security_enabled": False,
+        }
+    }
+    for attempt in tenacity.Retrying(
+            retry=tenacity.retry_if_exception_type(novaclient_client.exceptions.ClientException),
+            stop=tenacity.stop_after_attempt(10),
+            wait=tenacity.wait_exponential(multiplier=1, min=2, max=10),
+    ):
+        with attempt:
+            port = neutronclient.create_port(body=body_value)
+            return port
+
+
 def create_additional_port_for_machines(novaclient, neutronclient, net_id,
                                         unit_machine_ids,
                                         add_dataport_to_netplan=False):
@@ -996,17 +1036,9 @@ def create_additional_port_for_machines(novaclient, neutronclient, net_id,
             logging.info('Attaching additional port to instance ("{}"), '
                          'connected to net id: {}'
                          .format(uuid, net_id))
-            body_value = {
-                "port": {
-                    "admin_state_up": True,
-                    "name": ext_port_name,
-                    "network_id": net_id,
-                    "port_security_enabled": False,
-                }
-            }
-            port = neutronclient.create_port(body=body_value)
-            server.interface_attach(port_id=port['port']['id'],
-                                    net_id=None, fixed_ip=None)
+
+            port = _port_create(net_id, ext_port_name)
+            _server_port_attach(server, port['port']['id'])
             if add_dataport_to_netplan:
                 mac_address = get_mac_from_port(port, neutronclient)
                 add_interface_to_netplan(server.name,
