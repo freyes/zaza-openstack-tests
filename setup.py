@@ -46,7 +46,7 @@ install_require = [
     'lxml',
     'PyYAML',
     'tenacity',
-    'oslo.config<6.12.0',
+    'oslo.config<9.8.0',  # pin at epoxy - https://releases.openstack.org/epoxy/index.html#epoxy-oslo-config
     'osc-lib<4.0.0',  # needed for py38
     'aodhclient',
     'gnocchiclient>=7.0.5,<8.0.0',
